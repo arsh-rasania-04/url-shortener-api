@@ -1,0 +1,13 @@
+# Dependency directories
+node_modules/
+
+
+.env
+
+# Mac system files
+.DS_Store
+
+# Optional npm cache and logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
