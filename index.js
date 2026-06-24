@@ -3,28 +3,20 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
-// We have to use dynamic import for nanoid because it is an ESM package
-let nanoid;
-import('nanoid').then(module => {
-    nanoid = module.nanoid;
-});
-
 const Url = require('./models/Url');
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB Connected...'))
-  .catch(err => console.error(err));
-
+// We will initialize nanoid safely inside the startup sequence below
+let nanoid;
 
 // --- ROUTE 0: Health Check ---
 app.get('/', (req, res) => {
   res.send('URL Shortener API is actively running!');
 });
+
 // --- ROUTE 1: Generate Short Link ---
 app.post('/api/shorten', async (req, res) => {
   const { originalUrl } = req.body;
@@ -42,10 +34,8 @@ app.post('/api/shorten', async (req, res) => {
   }
 
   try {
-    // Generate a 6-character code
     const urlCode = nanoid(6);
 
-    // Save to database
     let url = new Url({
       originalUrl,
       urlCode,
@@ -54,7 +44,6 @@ app.post('/api/shorten', async (req, res) => {
 
     await url.save();
     
-    // Return the new code to the frontend
     res.json(url);
   } catch (err) {
     console.error(err);
@@ -68,7 +57,6 @@ app.get('/:code', async (req, res) => {
     const url = await Url.findOne({ urlCode: req.params.code });
 
     if (url) {
-      // 302 Temporary Redirect to the original URL
       return res.redirect(url.originalUrl);
     } else {
       return res.status(404).json('No url found');
@@ -79,5 +67,25 @@ app.get('/:code', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// --- THE FIX: Strict Boot Sequence ---
+const startServer = async () => {
+  try {
+    // 1. Force the server to wait for nanoid to load
+    const nanoidModule = await import('nanoid');
+    nanoid = nanoidModule.nanoid;
+
+    // 2. Force the server to wait for the database connection
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log('MongoDB Connected successfully.');
+
+    // 3. ONLY start listening for requests once both dependencies are locked in
+    const PORT = process.env.PORT || 5001;
+    app.listen(PORT, () => console.log(`Server running securely on port ${PORT}`));
+  } catch (err) {
+    console.error('CRITICAL ERROR: Failed to start server.', err);
+    // If the database fails to connect, kill the server process immediately
+    process.exit(1); 
+  }
+};
+
+startServer();
