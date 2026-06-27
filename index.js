@@ -9,15 +9,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// We will initialize nanoid safely inside the startup sequence below
+
 let nanoid;
 
-// --- ROUTE 0: Health Check ---
+
 app.get('/', (req, res) => {
   res.send('URL Shortener API is actively running!');
 });
 
-// --- ROUTE 1: Generate Short Link ---
+
 app.post('/api/shorten', async (req, res) => {
   const { originalUrl } = req.body;
 
@@ -51,7 +51,7 @@ app.post('/api/shorten', async (req, res) => {
   }
 });
 
-// --- ROUTE 2: The Redirect ---
+
 app.get('/:code', async (req, res) => {
   try {
     const url = await Url.findOne({ urlCode: req.params.code });
@@ -67,23 +67,22 @@ app.get('/:code', async (req, res) => {
   }
 });
 
-// --- THE FIX: Strict Boot Sequence ---
+
 const startServer = async () => {
   try {
-    // 1. Force the server to wait for nanoid to load
+
     const nanoidModule = await import('nanoid');
     nanoid = nanoidModule.nanoid;
 
-    // 2. Force the server to wait for the database connection
+
     await mongoose.connect(process.env.MONGO_URI);
     console.log('MongoDB Connected successfully.');
 
-    // 3. ONLY start listening for requests once both dependencies are locked in
+
     const PORT = process.env.PORT || 5001;
     app.listen(PORT, () => console.log(`Server running securely on port ${PORT}`));
   } catch (err) {
     console.error('CRITICAL ERROR: Failed to start server.', err);
-    // If the database fails to connect, kill the server process immediately
     process.exit(1); 
   }
 };
